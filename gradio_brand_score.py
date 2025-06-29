@@ -32,7 +32,7 @@ def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> di
             model=MODELS[model_name],
             tools=[{
                 "type": "web_search_preview",
-                "search_context_size": "high",
+                "search_context_size": "low",
                 "user_location": {
                     "type": "approximate",
                     "country": "AU",
@@ -62,7 +62,7 @@ def analyze_brand_score(prompt: str, brand_name: str) -> dict:
     if not prompt.strip() or not brand_name.strip():
         return {
             "score": 0,
-            "total_models": 4,
+            "total_models": 3,
             "mentions": 0,
             "results": [],
             "error": "Please provide both prompt and brand name."
@@ -128,7 +128,7 @@ with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft()) as demo:
             gr.Markdown("### Score Display")
             score_slider = gr.Slider(
                 minimum=0,
-                maximum=2,
+                maximum=3,
                 value=0,
                 step=1,
                 label="Brand Score",
@@ -140,6 +140,7 @@ with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft()) as demo:
                 interactive=False
             )
     # Side-by-side model outputs
+    gr.Markdown("## OpenAI models (ChatGPT) responses")
     with gr.Row() as model_outputs_row:
         model_output_blocks = []
         for model_name in MODELS.keys():
