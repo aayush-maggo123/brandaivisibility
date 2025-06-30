@@ -26,7 +26,7 @@ TEMPERATURE = 0.7
 def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> dict:
     """
     Query a specific model with the new OpenAI web_search_preview tool and check for brand mentions.
-    Uses the responses endpoint and sets user_location to Melbourne, Australia.
+    Uses the responses endpoint and sets user_location to Australia.
     """
     try:
         response = openai.responses.create(
@@ -36,9 +36,7 @@ def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> di
                 "search_context_size": "low",
                 "user_location": {
                     "type": "approximate",
-                    "country": "AU",
-                    "city": "Melbourne",
-                    "region": "Victoria"
+                    "country": "AU"
                 }
             }],
             input=prompt,
@@ -174,7 +172,7 @@ body, .gradio-container, .gr-block, .gr-group, .gr-box, .gr-markdown, .gr-textbo
 
 with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft(), css=custom_css) as demo:
     gr.Markdown("# 🏆 Brand Score Analyzer")
-    gr.Markdown("Enter a prompt and brand name to analyze how often the brand appears across multiple AI models with real-time web search capabilities. Results are optimized for Melbourne, Australia location.")
+    gr.Markdown("Enter a prompt and brand name to analyze how often the brand appears across multiple AI models with real-time web search capabilities. Results are optimized for Australia location.")
     with gr.Row():
         with gr.Column(scale=2):
             prompt_input = gr.Textbox(
@@ -249,4 +247,3 @@ with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft(), css=custom_
 if __name__ == "__main__":
     demo.launch()
 
-print(gradio.__file__)
