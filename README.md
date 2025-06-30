@@ -1,14 +1,15 @@
 # Brand Score Analyzer
 
-A Gradio web application that analyzes brand mentions across multiple OpenAI models with real-time web search capabilities.
+A Gradio web application that analyzes brand mentions and sentiment across multiple OpenAI models with real-time web search capabilities.
 
 ## Features
 
 - **Multi-Model Analysis**: Queries multiple OpenAI models (GPT-4o, GPT-4.1-mini, O4-mini)
 - **Web Search Integration**: Each model uses OpenAI's web search tool, location set to Melbourne, Australia
 - **Brand Scoring**: Counts how many times a brand appears across all model responses
-- **Visual Display**: Shows results with a slider (e.g., "2 out of 3") and detailed breakdown, side by side
-- **User-Friendly Interface**: Clean Gradio interface with relevant examples
+- **Brand Sentiment**: Calculates and displays the average sentiment (Negative, Neutral, Positive) across all model outputs, with a clear slider and summary
+- **Visual Display**: Clean, modern UI with side-by-side model outputs and a grouped analytics panel
+- **User-Friendly Interface**: Responsive Gradio interface with relevant examples and custom font for readability
 
 ## Setup
 
@@ -26,7 +27,7 @@ A Gradio web application that analyzes brand mentions across multiple OpenAI mod
 
 3. **Run the Application**:
    ```bash
-   python gradio_brand_score.py
+   python app.py
    ```
 
 ## Usage
@@ -35,9 +36,9 @@ A Gradio web application that analyzes brand mentions across multiple OpenAI mod
 2. Enter the brand name you want to search for
 3. Click "Analyze Brand Score"
 4. View the results:
-   - Slider showing score (e.g., 2 out of 3)
-   - Text summary
-   - Side-by-side breakdown of each model's response
+   - Brand Score slider and summary
+   - Brand Sentiment slider and summary (Negative, Neutral, Positive)
+   - Side-by-side breakdown of each model's response, with sentiment for each
 
 ## Example Prompts
 
@@ -64,8 +65,15 @@ The app uses the following models:
   ```
 - Do **not** commit your real `.env` file. Use `.env.example` for sharing variable requirements.
 
+## Design & UX
+
+- Inputs and analytics are grouped for clarity and ease of use
+- Brand Score, Brand Sentiment, and Brand Sentiment Summary are shown together in a single panel
+- Custom font: `'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif`
+- All model outputs are shown side by side for easy comparison
+
 ## Notes
 
 - You need a valid OpenAI API key to use this application
 - The app will create a shareable link when launched (if enabled)
-- All model outputs are shown side by side for easy comparison 
+- Only the Brand Sentiment Summary is shown (no bottom summary) 
