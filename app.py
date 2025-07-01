@@ -44,7 +44,7 @@ Example Output:
 1. What are the best video production companies in Melbourne?
 2. Top-rated video production studios in Melbourne for corporate videos?
 3. Can you recommend high-quality video production agencies in Melbourne?
-4. List the most reputable video production companies in Melbourne.
+4. List the most reputable video production companies in Melbourne?
 5. Who are the leading commercial video production companies in Melbourne?
 """
         user_prompt = f"Generate 5 search queries for the keyword: '{keyword}'"
@@ -77,14 +77,16 @@ def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> di
     try:
         response = openai.responses.create(
             model=MODELS[model_name],
-            tools=[{
-                "type": "web_search_preview",
-                "search_context_size": "low",
-                "user_location": {
-                    "type": "approximate",
-                    "country": "AU"
+            tools=[
+                {
+                    "type": "web_search_preview",
+                    "search_context_size": "low",
+                    "user_location": {
+                        "type": "approximate",
+                        "country": "AU"
+                    }
                 }
-            }],
+            ],
             input=prompt,
         )
         response_text = response.output_text
@@ -234,29 +236,21 @@ def generate_recommendations(brand_name, results, score, total):
                 if b.lower() != brand_name.lower():
                     competitors.add(b)
 
-        system_prompt = """You are a strategic marketing consultant specializing in AI and search engine optimization.
-        Based on the user's brand score, provide actionable recommendations to improve their visibility in AI chat models.
-        Structure your response in clear, easy-to-understand sections.
-        
-        Your response MUST include the following markdown headers:
-        ### Overview
-        ### Analysis of Missed Prompts
-        ### Competitors Identified
-        ### Strategic Recommendations
+        missed_prompts_str = "\n- ".join(missed_prompts) if missed_prompts else "None"
+        competitors_str = ", ".join(list(competitors)) if competitors else "None identified"
 
-        - Under "Overview", provide a brief, encouraging summary of the brand's performance.
-        - Under "Analysis of Missed Prompts", analyze why the brand might have been missed for the provided prompts.
-        - Under "Competitors Identified", list the key competitors that were identified in the search results.
-        - Under "Strategic Recommendations", provide a list of 3-5 concrete, strategic recommendations.
-        - Keep the tone professional, insightful, and helpful.
-        """
-
-        user_prompt = f"**Brand:** {brand_name}\n        **Overall Score:** {score}/{total}\n        \n        **Prompts where the brand was NOT mentioned:**\n        - {"\n- ".join(missed_prompts) if missed_prompts else "None"}\n        \n        **Competitors mentioned in the results:**\n        - {", ".join(list(competitors)) if competitors else "None identified"}\n        \n        Please provide your analysis and strategic recommendations based on this data, following the required structure.\n        "
+        user_prompt = (
+            f"**Brand:** {brand_name}\n"
+            f"**Overall Score:** {score}/{total}\n\n"
+            f"**Prompts where the brand was NOT mentioned:**\n- {missed_prompts_str}\n\n"
+            f"**Competitors mentioned in the results:**\n- {competitors_str}\n\n"
+            "Please provide your analysis and strategic recommendations based on this data, following the required structure.\n"
+        )
 
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": "You are a strategic marketing consultant specializing in AI and search engine optimization."},
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=700,
