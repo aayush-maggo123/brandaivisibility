@@ -3,7 +3,8 @@ import openai
 import re
 import os
 from dotenv import load_dotenv
-import gradio
+import pandas as pd
+import concurrent.futures
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,6 +23,51 @@ MODELS = {
 # App Configuration
 MAX_TOKENS = 500
 TEMPERATURE = 0.7
+
+def generate_prompts_for_keyword(keyword: str) -> list[str]:
+    """
+    Generates a list of diverse search queries for a given keyword using an LLM.
+    """
+    if not keyword.strip():
+        return []
+    try:
+        system_prompt = """You are an expert in generating search queries. Your task is to create 5 diverse, high-quality search queries based on a user-provided keyword.
+
+The queries should be designed to find the best companies or service providers related to the keyword. They should be phrased as natural questions or search terms that a real user would type into a search engine.
+
+Return the queries as a numbered list, with each query on a new line. Do not include any other text, preamble, or explanation.
+
+Example Input:
+video production melbourne
+
+Example Output:
+1. What are the best video production companies in Melbourne?
+2. Top-rated video production studios in Melbourne for corporate videos?
+3. Can you recommend high-quality video production agencies in Melbourne?
+4. List the most reputable video production companies in Melbourne.
+5. Who are the leading commercial video production companies in Melbourne?
+"""
+        user_prompt = f"Generate 5 search queries for the keyword: '{keyword}'"
+
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=200,
+            temperature=0.5,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content.strip()
+        # Use regex to find all lines that start with a number and a dot.
+        prompts = re.findall(r"^\d+\.\s*(.*)", content, re.MULTILINE)
+        return [p.strip() for p in prompts if p.strip()]
+    except Exception as e:
+        print(f"Error generating prompts: {e}")
+        return []
+
 
 def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> dict:
     """
@@ -45,6 +91,7 @@ def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> di
         brand_mentioned = bool(re.search(rf'\b{re.escape(brand_name)}\b', response_text, re.IGNORECASE))
         return {
             "model": model_name,
+            "prompt": prompt,
             "response": response_text,
             "brand_mentioned": brand_mentioned,
             "success": True
@@ -52,45 +99,11 @@ def query_model_with_search(model_name: str, prompt: str, brand_name: str) -> di
     except Exception as e:
         return {
             "model": model_name,
+            "prompt": prompt,
             "response": f"Error: {str(e)}",
             "brand_mentioned": False,
             "success": False
         }
-
-def analyze_brand_score(prompt: str, brand_name: str) -> dict:
-    if not prompt.strip() or not brand_name.strip():
-        return {
-            "score": 0,
-            "total_models": 3,
-            "mentions": 0,
-            "results": [],
-            "error": "Please provide both prompt and brand name."
-        }
-    results = []
-    mentions = 0
-    for model_name in MODELS.keys():
-        result = query_model_with_search(model_name, prompt, brand_name)
-        results.append(result)
-        if result["brand_mentioned"]:
-            mentions += 1
-    return {
-        "score": mentions,
-        "total_models": len(MODELS),
-        "mentions": mentions,
-        "results": results,
-        "error": None
-    }
-
-def create_detailed_output(analysis_result: dict) -> str:
-    if analysis_result["error"]:
-        return analysis_result["error"]
-    output = f"**Brand Score: {analysis_result['mentions']} out of {analysis_result['total_models']}**\n\n"
-    output += "**Detailed Results:**\n\n"
-    for result in analysis_result["results"]:
-        status = "✅" if result["brand_mentioned"] else "❌"
-        output += f"**{result['model']}** {status}\n"
-        output += f"Response: {result['response']}\n\n"
-    return output
 
 def sentiment_to_score(sentiment):
     sentiment = sentiment.lower()
@@ -118,51 +131,142 @@ def get_sentiment(text, brand_name, brand_mentioned):
     except Exception as e:
         return f"Error: {str(e)}"
 
-def process_brand_analysis(prompt: str, brand_name: str):
-    analysis = analyze_brand_score(prompt, brand_name)
-    outputs = []
-    sentiments = []
-    responses = []
-    for result in analysis["results"]:
-        status = "✅" if result["brand_mentioned"] else "❌"
-        sentiment = get_sentiment(result["response"], brand_name, result["brand_mentioned"])
-        sentiments.append(sentiment)
-        responses.append(result["response"])
-        outputs.append(
-            f"**{result['model']}** {status}\n\n**Sentiment:** {sentiment}\n\n{result['response']}"
-        )
-    # Calculate overall sentiment score
-    sentiment_scores = [sentiment_to_score(s) for s in sentiments]
-    if sentiment_scores:
-        avg_sentiment = sum(sentiment_scores) / len(sentiment_scores)
-    else:
-        avg_sentiment = 0
-    # Summarize brand sentiment
-    brand_sentiment_summary = summarize_perception(sentiments)
-    # Return slider, summary, sentiment slider, sentiment summary, all model outputs
-    return (
-        analysis["score"],
-        f"{analysis['mentions']} out of {analysis['total_models']}",
-        avg_sentiment,
-        brand_sentiment_summary,
-        *outputs
-    )
+def run_full_analysis(keyword: str, brand_name: str):
+    if not brand_name.strip() or not keyword.strip():
+        return gr.Slider(maximum=3, value=0), "0 out of 0", 0, "Please provide both a keyword and a brand name.", pd.DataFrame(), "Results will appear here."
 
-def summarize_perception(responses):
+    prompts = generate_prompts_for_keyword(keyword)
+    if not prompts:
+        return gr.Slider(maximum=3, value=0), "0 out of 0", 0, "Could not generate prompts for the given keyword.", pd.DataFrame(), "Results will appear here."
+
+    all_results = []
+    total_mentions = 0
+    total_models_queried = len(prompts) * len(MODELS)
+    summary_table_data = {prompt: {"Prompt": prompt, "Brand Name": brand_name, "Score": 0} for prompt in prompts}
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_result = {executor.submit(query_model_with_search, model_name, prompt, brand_name): (prompt, model_name) for prompt in prompts for model_name in MODELS.keys()}
+        
+        for future in concurrent.futures.as_completed(future_to_result):
+            prompt, model_name = future_to_result[future]
+            try:
+                result = future.result()
+                all_results.append(result)
+                summary_table_data[prompt][model_name] = "✅" if result["brand_mentioned"] else "❌"
+                if result["brand_mentioned"]:
+                    summary_table_data[prompt]["Score"] += 1
+                    total_mentions += 1
+            except Exception as exc:
+                print(f'{prompt} generated an exception: {exc}')
+                summary_table_data[prompt][model_name] = "Error"
+
+    # Finalize summary table
+    for prompt in prompts:
+        summary_table_data[prompt]["Score"] = f'{summary_table_data[prompt]["Score"]}/{len(MODELS)}'
+    summary_df = pd.DataFrame(list(summary_table_data.values()), columns=["Prompt", "Brand Name"] + list(MODELS.keys()) + ["Score"])
+
+    # Process sentiment for mentioned responses
+    all_sentiments = []
+    all_responses_for_summary = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_sentiment = {executor.submit(get_sentiment, result["response"], brand_name, result["brand_mentioned"]): result for result in all_results if result["brand_mentioned"]}
+        for future in concurrent.futures.as_completed(future_to_sentiment):
+            result = future_to_sentiment[future]
+            try:
+                sentiment = future.result()
+                all_sentiments.append(sentiment)
+                all_responses_for_summary.append(result["response"])
+            except Exception as exc:
+                print(f'Sentiment analysis generated an exception: {exc}')
+
+    # Calculate overall sentiment
+    sentiment_scores = [sentiment_to_score(s) for s in all_sentiments]
+    avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
+
+    # Summarize overall perception
+    brand_sentiment_summary = "Not enough data for a summary."
+    if all_responses_for_summary:
+        brand_sentiment_summary = summarize_perception(all_responses_for_summary, brand_name)
+
+    score_summary_text = f"{total_mentions} out of {total_models_queried}"
+    score_slider_update = gr.Slider(maximum=total_models_queried, value=total_mentions)
+
+    # Generate recommendations
+    recommendations = generate_recommendations(brand_name, all_results, total_mentions, total_models_queried)
+
+    return score_slider_update, score_summary_text, avg_sentiment, brand_sentiment_summary, summary_df, recommendations
+
+def summarize_perception(responses, brand_name):
     try:
         joined = "\n\n".join(responses)
         summary_response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a brand perception analyst."},
-                {"role": "user", "content": f"Based on the following outputs, summarize how the brand is perceived overall:\n\n{joined}"}
+                {"role": "user", "content": f"Based on the following outputs, summarize how the brand '{brand_name}' is perceived overall:\n\n{joined}"}
             ],
-            max_tokens=60,
+            max_tokens=150,
             temperature=0.3
         )
         return summary_response.choices[0].message.content.strip()
     except Exception as e:
         return f"Error: {str(e)}"
+
+def generate_recommendations(brand_name, results, score, total):
+    try:
+        # Basic analysis of where the brand was missed
+        missed_prompts = []
+        prompt_results = {}
+        for r in results:
+            if r["prompt"] not in prompt_results:
+                prompt_results[r["prompt"]] = []
+            prompt_results[r["prompt"]].append(r)
+
+        for prompt, p_results in prompt_results.items():
+            if not any(r["brand_mentioned"] for r in p_results):
+                missed_prompts.append(prompt)
+
+        # Basic competitor analysis (extracting other mentioned brands)
+        competitors = set()
+        for r in results:
+            found_brands = re.findall(r'\b[A-Z][a-zA-Z-]+\b', r["response"])
+            for b in found_brands:
+                if b.lower() != brand_name.lower():
+                    competitors.add(b)
+
+        system_prompt = """You are a strategic marketing consultant specializing in AI and search engine optimization.
+        Based on the user's brand score, provide actionable recommendations to improve their visibility in AI chat models.
+        Structure your response in clear, easy-to-understand sections.
+        
+        Your response MUST include the following markdown headers:
+        ### Overview
+        ### Analysis of Missed Prompts
+        ### Competitors Identified
+        ### Strategic Recommendations
+
+        - Under "Overview", provide a brief, encouraging summary of the brand's performance.
+        - Under "Analysis of Missed Prompts", analyze why the brand might have been missed for the provided prompts.
+        - Under "Competitors Identified", list the key competitors that were identified in the search results.
+        - Under "Strategic Recommendations", provide a list of 3-5 concrete, strategic recommendations.
+        - Keep the tone professional, insightful, and helpful.
+        """
+
+        user_prompt = f"**Brand:** {brand_name}\n        **Overall Score:** {score}/{total}\n        \n        **Prompts where the brand was NOT mentioned:**\n        - {"\n- ".join(missed_prompts) if missed_prompts else "None"}\n        \n        **Competitors mentioned in the results:**\n        - {", ".join(list(competitors)) if competitors else "None identified"}\n        \n        Please provide your analysis and strategic recommendations based on this data, following the required structure.\n        "
+
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=700,
+            temperature=0.6
+        )
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"Error generating recommendations: {str(e)}"
+
 
 custom_css = """
 body, .gradio-container, .gr-block, .gr-group, .gr-box, .gr-markdown, .gr-textbox, .gr-slider, .gr-button, .gr-row, .gr-column {
@@ -172,33 +276,37 @@ body, .gradio-container, .gr-block, .gr-group, .gr-box, .gr-markdown, .gr-textbo
 
 with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft(), css=custom_css) as demo:
     gr.Markdown("# 🏆 Brand Score Analyzer")
-    gr.Markdown("Enter a prompt and brand name to analyze how often the brand appears across multiple AI models with real-time web search capabilities. Results are optimized for Australia location.")
+    gr.Markdown("Enter a keyword and a brand name to analyze how often the brand appears across multiple AI models for a set of generated search queries. Results are optimized for Australia.")
+    
     with gr.Row():
         with gr.Column(scale=2):
-            prompt_input = gr.Textbox(
-                label="Prompt",
-                placeholder="Enter your question or prompt here...",
-                lines=10
+            keyword_input = gr.Textbox(
+                label="Keyword",
+                placeholder="e.g., video production melbourne, financial advisor sydney",
+                lines=1,
+                value="video production melbourne"
             )
             brand_input = gr.Textbox(
                 label="Brand Name",
                 placeholder="Enter the brand name to search for...",
-                lines=1
+                lines=1,
+                value="AngryChair"
             )
             analyze_btn = gr.Button("Analyze Brand Score", variant="primary", size="lg")
+            
         with gr.Column(scale=1):
             with gr.Group():
                 score_text = gr.Textbox(
-                    value="0 out of 2",
-                    label="Score Summary",
+                    value="0 out of 15",
+                    label="Overall Score Summary",
                     interactive=False
                 )
                 score_slider = gr.Slider(
                     minimum=0,
-                    maximum=3,
+                    maximum=15, # Initial max, will be updated
                     value=0,
                     step=1,
-                    label="Brand Score",
+                    label="Total Brand Mentions",
                     interactive=False
                 )
                 sentiment_slider = gr.Slider(
@@ -206,44 +314,28 @@ with gr.Blocks(title="Brand Score Analyzer", theme=gr.themes.Soft(), css=custom_
                     maximum=1,
                     value=0,
                     step=0.01,
-                    label="Brand Sentiment",
+                    label="Average Brand Sentiment",
                     interactive=False,
-                    render=True,
-                    show_label=True,
                     info="Negative (-1), Neutral (0), Positive (1)",
                 )
                 brand_sentiment_summary_box = gr.Textbox(
                     value="Brand sentiment summary will appear here.",
                     label="Brand Sentiment Summary",
-                    interactive=False
+                    interactive=False,
+                    lines=4
                 )
-    # Side-by-side model outputs
-    gr.Markdown("## OpenAI models (ChatGPT) responses")
-    with gr.Row() as model_outputs_row:
-        model_output_blocks = []
-        for model_name in MODELS.keys():
-            model_output_blocks.append(
-                gr.Markdown(
-                    value=f"Waiting for {model_name}...",
-                    label=f"{model_name} Output"
-                )
-            )
+
+    gr.Markdown("## Summary Table")
+    summary_df = gr.DataFrame(headers=["Prompt", "Brand Name"] + list(MODELS.keys()) + ["Score"], interactive=False)
+
+    gr.Markdown("## Strategic Recommendations")
+    recommendations_output = gr.Markdown("Recommendations will appear here.")
+
     analyze_btn.click(
-        fn=process_brand_analysis,
-        inputs=[prompt_input, brand_input],
-        outputs=[score_slider, score_text, sentiment_slider, brand_sentiment_summary_box, *model_output_blocks]
-    )
-    gr.Examples(
-        examples=[
-            ["What are the best video production companies in Melbourne?", "AngryChair"],
-            ["Top-rated video production studios in Melbourne for corporate videos?", "AngryChair"],
-            ["Can you recommend high-quality video production agencies in Melbourne?", "AngryChair"],
-            ["List the most reputable video production companies in Melbourne.", "AngryChair"],
-            ["Who are the leading commercial video production companies in Melbourne?", "AngryChair"]
-        ],
-        inputs=[prompt_input, brand_input]
+        fn=run_full_analysis,
+        inputs=[keyword_input, brand_input],
+        outputs=[score_slider, score_text, sentiment_slider, brand_sentiment_summary_box, summary_df, recommendations_output]
     )
 
 if __name__ == "__main__":
     demo.launch()
-

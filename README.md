@@ -1,79 +1,54 @@
 # Brand Score Analyzer
 
-A Gradio web application that analyzes brand mentions and sentiment across multiple OpenAI models with real-time web search capabilities.
+A dynamic and high-speed Gradio web application that analyzes brand visibility, sentiment, and competitive positioning across multiple AI models using real-time, location-aware web searches.
 
-## Features
+## Key Features
 
-- **Multi-Model Analysis**: Queries multiple OpenAI models (GPT-4o, GPT-4.1-mini, O4-mini)
-- **Web Search Integration**: Each model uses OpenAI's web search tool, location set to Melbourne, Australia
-- **Brand Scoring**: Counts how many times a brand appears across all model responses
-- **Brand Sentiment**: Calculates and displays the average sentiment (Negative, Neutral, Positive) across all model outputs, with a clear slider and summary
-- **Visual Display**: Clean, modern UI with side-by-side model outputs and a grouped analytics panel
-- **User-Friendly Interface**: Responsive Gradio interface with relevant examples and custom font for readability
+- **Dynamic Prompt Generation**: Enter any keyword (e.g., "video production melbourne", "best cafes in sydney") to automatically generate a diverse set of relevant search queries.
+- **Concurrent API Requests**: All API calls to the AI models are made in parallel, delivering analysis results significantly faster than sequential requests.
+- **Multi-Model Analysis**: Queries multiple leading OpenAI models (GPT-4o, GPT-4.1-mini, O4-mini) to provide a comprehensive view of your brand's visibility.
+- **Location-Aware Search**: All web searches are optimized for Australia to provide locally relevant results.
+- **Comprehensive Scoring**: Calculates a brand score based on how many times your brand is mentioned across all model responses.
+- **Brand Sentiment Analysis**: Analyzes the sentiment (Positive, Negative, or Neutral) of the text specifically where your brand is mentioned.
+- **Actionable Insights**:
+  - **Summary Table**: A clear, concise table showing which models mentioned your brand for each generated prompt.
+  - **Strategic Recommendations**: Automatically generates a report with an overview, analysis of missed opportunities, a list of identified competitors, and actionable recommendations to improve your brand's AI visibility.
 
 ## Setup
 
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-2. **Configure API Key**:
-   - Copy `.env.example` to `.env`
-   - Add your OpenAI API key in `.env`:
-     ```
-     OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-     ```
+2.  **Configure API Key**:
+    -   Copy `.env.example` to `.env`.
+    -   Add your OpenAI API key to the `.env` file:
+        ```
+        OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        ```
 
-3. **Run the Application**:
-   ```bash
-   python app.py
-   ```
+3.  **Run the Application**:
+    ```bash
+    python app.py
+    ```
 
 ## Usage
 
-1. Enter a prompt/question in the text area
-2. Enter the brand name you want to search for
-3. Click "Analyze Brand Score"
-4. View the results:
-   - Brand Score slider and summary
-   - Brand Sentiment slider and summary (Negative, Neutral, Positive)
-   - Side-by-side breakdown of each model's response, with sentiment for each
-
-## Example Prompts
-
-All examples use the brand **AngryChair**:
-
-- What are the best video production companies in Melbourne?
-- Top-rated video production studios in Melbourne for corporate videos?
-- Can you recommend high-quality video production agencies in Melbourne?
-- List the most reputable video production companies in Melbourne.
-- Who are the leading commercial video production companies in Melbourne?
+1.  **Enter a Keyword**: Type a keyword or phrase that represents your industry or service (e.g., `financial advisor perth`).
+2.  **Enter a Brand Name**: Provide the name of the brand you want to analyze.
+3.  **Click "Analyze Brand Score"**.
+4.  **Review the Results**:
+    -   **Overall Score**: See the a total number of brand mentions in the top-right panel.
+    -   **Average Sentiment**: View the average sentiment score for your brand's mentions.
+    -   **Summary Table**: Quickly see which prompts and models featured your brand.
+    -   **Strategic Recommendations**: Read the detailed analysis and actionable advice at the bottom to improve your score.
 
 ## Configuration
 
-The app uses the following models:
-- GPT-4o (`gpt-4o`)
-- GPT-4.1-mini (`gpt-4o-mini`)
-- O4-mini (`o4-mini`)
+The app is configured to use the following models:
+-   GPT-4o (`gpt-4o`)
+-   GPT-4.1-mini (`gpt-4o-mini`)
+-   O4-mini (`o4-mini`)
 
-## Environment Variables
-
-- Only one variable is required in your `.env` file:
-  ```
-  OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  ```
-- Do **not** commit your real `.env` file. Use `.env.example` for sharing variable requirements.
-
-## Design & UX
-
-- Inputs and analytics are grouped for clarity and ease of use
-- Brand Score, Brand Sentiment, and Brand Sentiment Summary are shown together in a single panel
-- Custom font: `'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif`
-- All model outputs are shown side by side for easy comparison
-
-## Notes
-
-- You need a valid OpenAI API key to use this application
-- The app will create a shareable link when launched (if enabled)
-- Only the Brand Sentiment Summary is shown (no bottom summary) 
+All API requests are sent with `user_location` set to Australia (`AU`).
